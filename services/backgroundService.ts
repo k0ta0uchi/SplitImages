@@ -18,14 +18,14 @@ let segmenter: any = null;
 export const removeBackgroundLocal = async (imageFile: File): Promise<string> => {
   try {
     if (!segmenter) {
-      console.log("Initializing background removal model (RMBG-2.0)...");
-      // Initialize the pipeline. 'briaai/RMBG-2.0' is the requested model.
+      console.log("Initializing background removal model (Xenova/rmbg-1.4)...");
+      // Initialize the pipeline. 'Xenova/rmbg-1.4' is the recommended model for transformers.js
       // We use 'image-segmentation' task.
-      segmenter = await pipeline('image-segmentation', 'briaai/RMBG-2.0');
+      segmenter = await pipeline('image-segmentation', 'Xenova/rmbg-1.4');
     }
 
     const imageUrl = URL.createObjectURL(imageFile);
-    
+
     // Run inference
     console.log("Running inference...");
     const output = await segmenter(imageUrl);
@@ -33,14 +33,14 @@ export const removeBackgroundLocal = async (imageFile: File): Promise<string> =>
     if (output && output.length > 0) {
       // The mask is returned as a RawImage object
       // For RMBG models, the output is typically a mask of the foreground
-      const mask = output[0].mask; 
-      
+      const mask = output[0].mask;
+
       // Create a canvas to combine the mask with the original image
       const canvas = document.createElement('canvas');
       canvas.width = mask.width;
       canvas.height = mask.height;
       const ctx = canvas.getContext('2d');
-      
+
       if (!ctx) throw new Error("Could not get canvas context");
 
       // Load the original image onto the canvas
@@ -61,7 +61,7 @@ export const removeBackgroundLocal = async (imageFile: File): Promise<string> =>
       // Get pixel data to apply alpha mask
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const pixelData = imageData.data;
-      
+
       const maskData = mask.data; // Uint8Array
       const maskChannels = mask.channels; // Should be 1
 
@@ -69,9 +69,9 @@ export const removeBackgroundLocal = async (imageFile: File): Promise<string> =>
       for (let i = 0; i < pixelData.length; i += 4) {
         const maskIndex = (i / 4) * maskChannels;
         const alphaVal = maskData[maskIndex];
-        
+
         // Update alpha channel
-        pixelData[i + 3] = alphaVal; 
+        pixelData[i + 3] = alphaVal;
       }
 
       ctx.putImageData(imageData, 0, 0);
