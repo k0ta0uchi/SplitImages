@@ -18,10 +18,10 @@ let segmenter: any = null;
 export const removeBackgroundLocal = async (imageFile: File): Promise<string> => {
   try {
     if (!segmenter) {
-      console.log("Initializing background removal model (yuvraj108c/RMBG-2.0)...");
-      // Initialize the pipeline. 'yuvraj108c/RMBG-2.0' is the requested model.
-      // We use 'image-segmentation' task.
-      segmenter = await pipeline('image-segmentation', 'yuvraj108c/RMBG-2.0');
+      console.log("Initializing background removal model (briaai/RMBG-1.4)...");
+      // Initialize the pipeline. 'Xenova/rmbg-1.4' is the recommended model for transformers.js
+      // Note: 'yuvraj108c/RMBG-2.0' causes "Unsupported model type: null" error as of current version.
+      segmenter = await pipeline('image-segmentation', 'briaai/RMBG-1.4');
     }
 
     const imageUrl = URL.createObjectURL(imageFile);
