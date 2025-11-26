@@ -1,0 +1,5 @@
+{
+  "name": "SplitGrid AI",
+  "description": "Smart image splitter with AI-powered background removal. Upload, process, split into grids, and download individually or as a ZIP.",
+  "requestFramePermissions": []
+}
