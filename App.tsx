@@ -1,22 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ControlPanel from './components/ControlPanel';
 import GridPreview from './components/GridPreview';
 import { ImageState, ProcessingStatus, SplitPiece } from './types';
 import { splitImage, downloadZip, downloadSingle } from './services/imageService';
 import { removeBackgroundLocal } from './services/backgroundService';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { t } = useLanguage();
   const [imageState, setImageState] = useState<ImageState>({
     original: null,
     previewUrl: null,
     isProcessed: false,
   });
-  
+
   const [rows, setRows] = useState(2);
   const [cols, setCols] = useState(2);
   const [pieces, setPieces] = useState<SplitPiece[]>([]);
   const [status, setStatus] = useState<ProcessingStatus>(ProcessingStatus.IDLE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [threshold, setThreshold] = useState<number>(0.5);
+  const [opacityBoost, setOpacityBoost] = useState<number>(1.0);
+  const [expand, setExpand] = useState<number>(0);
+  const [removalMode, setRemovalMode] = useState<'original' | 'split'>('split');
+  const [progress, setProgress] = useState<number>(0);
+  const [progressText, setProgressText] = useState<string>('');
+  
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const [isCanceling, setIsCanceling] = useState(false);
 
   // Debounce the split operation to avoid freezing on slider drag
   useEffect(() => {
@@ -25,15 +36,17 @@ const App: React.FC = () => {
       return;
     }
 
+    // If we are in split mode and have processed pieces, we might not want to overwrite them
+    // immediately if the user is just toggling things, but if rows/cols change, we MUST re-split.
+    // The dependency array includes rows/cols, so this runs on change.
+
     const timer = setTimeout(async () => {
-      // Don't set SPLITTING status if we are just previewing resizing, 
-      // unless we want to show a loader. Canvas is fast for small numbers.
       try {
         const newPieces = await splitImage(imageState.previewUrl!, rows, cols);
         setPieces(newPieces);
       } catch (error) {
         console.error("Split failed", error);
-        setErrorMessage("Failed to split image.");
+        setErrorMessage(t('errorSplit'));
       }
     }, 300);
 
@@ -52,6 +65,28 @@ const App: React.FC = () => {
       setPieces([]);
       setStatus(ProcessingStatus.IDLE);
       setErrorMessage(null);
+      setThreshold(0.5);
+      setRemovalMode('split');
+    }
+  };
+
+  // Helper to convert DataURL to File
+  const dataURLtoFile = (dataurl: string, filename: string): File => {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)?.[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], filename, { type: mime });
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      setIsCanceling(true);
+      abortControllerRef.current.abort();
     }
   };
 
@@ -60,22 +95,123 @@ const App: React.FC = () => {
 
     setStatus(ProcessingStatus.REMOVING_BACKGROUND);
     setErrorMessage(null);
+    setProgress(0);
+    setProgressText(t('initializing'));
+    setIsCanceling(false);
+
+    abortControllerRef.current = new AbortController();
 
     try {
-      // Use local transformer-based background removal
-      const processedUrl = await removeBackgroundLocal(imageState.original);
-      
-      setImageState(prev => ({
-        ...prev,
-        previewUrl: processedUrl,
-        isProcessed: true
-      }));
-      
-    } catch (error) {
-      console.error(error);
-      setErrorMessage("Background removal failed. Please check console for details.");
+      if (removalMode === 'original') {
+        // Original mode: Process whole image first
+        const processedUrl = await removeBackgroundLocal(imageState.original, {
+          threshold,
+          opacityBoost,
+          expand
+        }, (msg, percent) => {
+          // Check abort signal? removeBackgroundLocal doesn't support aborting mid-inference easily yet,
+          // but we can check here if we want to stop updating UI
+          if (abortControllerRef.current?.signal.aborted) throw new Error('Aborted');
+          setProgressText(msg);
+          setProgress(percent);
+        });
+
+        if (abortControllerRef.current?.signal.aborted) throw new Error('Aborted');
+
+        setImageState(prev => ({
+          ...prev,
+          previewUrl: processedUrl,
+          isProcessed: true
+        }));
+      } else {
+        // Split mode: Split first, then process each piece
+        // We need to re-generate pieces here to ensure we have the latest split from the ORIGINAL image
+        // (or current preview if it's already processed, but usually we want from original if we are switching modes)
+        // Actually, if imageState.isProcessed is true, previewUrl is already transparent.
+        // If user switches to split mode after original mode, they might want to re-process from scratch?
+        // Let's assume we always process from the current previewUrl state, 
+        // BUT if we want "Split then Remove", we imply removing background from opaque pieces.
+        // So we should probably use imageState.original if available.
+
+        // However, splitImage takes a URL.
+        const originalUrl = URL.createObjectURL(imageState.original);
+        const currentPieces = await splitImage(originalUrl, rows, cols);
+        URL.revokeObjectURL(originalUrl); // Clean up
+
+        // Initialize pieces with original ones first
+        setPieces(currentPieces);
+
+        const totalPieces = currentPieces.length;
+
+        // Process each piece sequentially
+        for (let i = 0; i < totalPieces; i++) {
+          if (abortControllerRef.current?.signal.aborted) {
+             throw new Error('Aborted');
+          }
+
+          const piece = currentPieces[i];
+          const file = dataURLtoFile(piece.dataUrl, `piece_${i}.png`);
+
+          // Process piece
+          const processedDataUrl = await removeBackgroundLocal(file, {
+            threshold,
+            opacityBoost,
+            expand
+          }, (msg, percent) => {
+             if (abortControllerRef.current?.signal.aborted) return;
+             // Calculate global progress
+             // Global = (Completed Pieces * 100 + Current Piece Percent) / Total Pieces
+             const globalPercent = ((i * 100) + percent) / totalPieces;
+             setProgress(globalPercent);
+             setProgressText(`${t('piece')} ${i + 1}/${totalPieces}: ${msg}`);
+          });
+
+          if (abortControllerRef.current?.signal.aborted) {
+             throw new Error('Aborted');
+          }
+
+          // Create new Blob/File and URL for the processed piece
+          const processedFile = dataURLtoFile(processedDataUrl, piece.fileName);
+          const processedUrl = URL.createObjectURL(processedFile);
+
+          const newPiece: SplitPiece = {
+            ...piece,
+            blob: processedFile,
+            url: processedUrl,
+            dataUrl: processedDataUrl
+          };
+
+          // Update pieces state incrementally to show progress
+          setPieces(prev => {
+            const next = [...prev];
+            next[i] = newPiece;
+            return next;
+          });
+        }
+
+        // Mark as processed so UI updates (buttons disable etc)
+        // But we DON'T update previewUrl because that would trigger the useEffect and overwrite our work
+        setImageState(prev => ({
+          ...prev,
+          isProcessed: true
+        }));
+      }
+
+    } catch (error: any) {
+      if (error.message === 'Aborted') {
+        console.log('Processing aborted');
+        // Optional: revert pieces or keep partial? 
+        // For now, we leave partial state or reset status
+      } else {
+        console.error(error);
+        setErrorMessage(t('errorBackground'));
+      }
     } finally {
       setStatus(ProcessingStatus.IDLE);
+      setProgress(0);
+      setProgressText('');
+      setIsCanceling(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -86,13 +222,16 @@ const App: React.FC = () => {
       await downloadZip(pieces);
     } catch (error) {
       console.error(error);
-      setErrorMessage("Failed to generate ZIP.");
+      setErrorMessage(t('errorZip'));
     } finally {
       setStatus(ProcessingStatus.IDLE);
     }
   };
 
   const handleReset = () => {
+    if (status !== ProcessingStatus.IDLE) {
+       handleCancel();
+    }
     setImageState({
       original: null,
       previewUrl: null,
@@ -103,11 +242,13 @@ const App: React.FC = () => {
     setCols(2);
     setErrorMessage(null);
     setStatus(ProcessingStatus.IDLE);
+    setThreshold(0.5);
+    setRemovalMode('split');
   };
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-900 text-gray-100">
-      <ControlPanel 
+      <ControlPanel
         rows={rows}
         setRows={setRows}
         cols={cols}
@@ -119,21 +260,33 @@ const App: React.FC = () => {
         status={status}
         hasImage={!!imageState.previewUrl}
         isProcessed={imageState.isProcessed}
+        threshold={threshold}
+        setThreshold={setThreshold}
+        opacityBoost={opacityBoost}
+        setOpacityBoost={setOpacityBoost}
+        expand={expand}
+        setExpand={setExpand}
+        removalMode={removalMode}
+        setRemovalMode={setRemovalMode}
+        progress={progress}
+        progressText={progressText}
+        onCancel={handleCancel}
+        isCanceling={isCanceling}
       />
-      
+
       <main className="flex-1 relative flex flex-col min-w-0">
-        <GridPreview 
+        <GridPreview
           pieces={pieces}
           cols={cols}
           onDownloadSingle={downloadSingle}
           isLoading={status !== ProcessingStatus.IDLE}
         />
-        
+
         {/* Error Toast */}
         {errorMessage && (
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg backdrop-blur animate-fade-in-up">
+          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg backdrop-blur animate-fade-in-up z-50">
             {errorMessage}
-            <button 
+            <button
               onClick={() => setErrorMessage(null)}
               className="ml-3 hover:text-red-200 font-bold"
             >
@@ -145,5 +298,11 @@ const App: React.FC = () => {
     </div>
   );
 };
+
+const App: React.FC = () => (
+  <LanguageProvider>
+    <AppContent />
+  </LanguageProvider>
+);
 
 export default App;

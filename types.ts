@@ -2,6 +2,7 @@ export interface SplitPiece {
   id: string;
   blob: Blob;
   url: string;
+  dataUrl: string; // Base64 Data URL
   row: number;
   col: number;
   fileName: string;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Download } from 'lucide-react';
 import { SplitPiece } from '../types';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface GridPreviewProps {
   pieces: SplitPiece[];
@@ -10,6 +11,8 @@ interface GridPreviewProps {
 }
 
 const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingle, isLoading }) => {
+  const { t } = useLanguage();
+
   return (
     <div className="w-full h-full p-8 overflow-y-auto bg-gray-900 flex items-center justify-center">
       {pieces.length === 0 ? (
@@ -17,8 +20,8 @@ const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingl
           <div className="w-24 h-24 border-4 border-dashed border-gray-600 rounded-2xl mx-auto flex items-center justify-center">
             <div className="w-12 h-12 bg-gray-700 rounded-lg" />
           </div>
-          <p className="text-xl font-medium text-gray-400">No image loaded</p>
-          <p className="text-sm text-gray-500">Upload an image from the sidebar to start splitting.</p>
+          <p className="text-xl font-medium text-gray-400">{t('noImageLoaded')}</p>
+          <p className="text-sm text-gray-500">{t('uploadInstruction')}</p>
         </div>
       ) : (
         <div className="relative max-w-5xl w-full">
@@ -47,7 +50,7 @@ const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingl
                   <button
                     onClick={() => onDownloadSingle(piece)}
                     className="p-2 bg-white text-gray-900 rounded-full hover:bg-gray-200 transform hover:scale-110 transition-all shadow-lg"
-                    title="Download this piece"
+                    title={t('downloadPiece')}
                   >
                     <Download className="w-5 h-5" />
                   </button>
@@ -60,7 +63,7 @@ const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingl
           </div>
           
           <div className="mt-6 text-center text-gray-500 text-sm">
-             Previewing {pieces.length} pieces. Hover over a piece to download individually.
+             {t('previewCount', { count: pieces.length })}
           </div>
         </div>
       )}
