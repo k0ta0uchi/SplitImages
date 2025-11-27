@@ -28,6 +28,16 @@ const AppContent: React.FC = () => {
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true); // For mobile bottom sheet
+
+  // Control panel visibility on mobile based on image state
+  useEffect(() => {
+     if (!imageState.previewUrl) {
+       setIsPanelOpen(true);
+     } else {
+       setIsPanelOpen(false); // Collapse when image loaded to show preview
+     }
+  }, [imageState.previewUrl]);
 
   // Debounce the split operation to avoid freezing on slider drag
   useEffect(() => {
@@ -246,45 +256,62 @@ const AppContent: React.FC = () => {
     setRemovalMode('split');
   };
 
-  return (
-    <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-gray-900 text-gray-100">
-      <ControlPanel
-        rows={rows}
-        setRows={setRows}
-        cols={cols}
-        setCols={setCols}
-        onUpload={handleUpload}
-        onRemoveBackground={handleRemoveBackground}
-        onDownloadZip={handleDownloadZip}
-        onReset={handleReset}
-        status={status}
-        hasImage={!!imageState.previewUrl}
-        isProcessed={imageState.isProcessed}
-        threshold={threshold}
-        setThreshold={setThreshold}
-        opacityBoost={opacityBoost}
-        setOpacityBoost={setOpacityBoost}
-        expand={expand}
-        setExpand={setExpand}
-        removalMode={removalMode}
-        setRemovalMode={setRemovalMode}
-        progress={progress}
-        progressText={progressText}
-        onCancel={handleCancel}
-        isCanceling={isCanceling}
-      />
+  const commonControlProps = {
+    rows,
+    setRows,
+    cols,
+    setCols,
+    onUpload: handleUpload,
+    onRemoveBackground: handleRemoveBackground,
+    onDownloadZip: handleDownloadZip,
+    onReset: handleReset,
+    status,
+    hasImage: !!imageState.previewUrl,
+    isProcessed: imageState.isProcessed,
+    threshold,
+    setThreshold,
+    opacityBoost,
+    setOpacityBoost,
+    expand,
+    setExpand,
+    removalMode,
+    setRemovalMode,
+    progress,
+    progressText,
+    onCancel: handleCancel,
+    isCanceling
+  };
 
-      <main className="flex-1 relative flex flex-col min-w-0">
-        <GridPreview
-          pieces={pieces}
-          cols={cols}
-          onDownloadSingle={downloadSingle}
-          isLoading={status !== ProcessingStatus.IDLE}
+  return (
+    <div className="flex h-screen overflow-hidden bg-gray-900 text-gray-100 relative">
+      {/* Desktop Sidebar (visible on md+) */}
+      <div className="hidden md:block h-full">
+        <ControlPanel
+          {...commonControlProps}
+          variant="desktop"
         />
+      </div>
+
+      {/* Main Content (Preview) */}
+      <main className="flex-1 relative flex flex-col min-w-0 h-full">
+        {/* Mobile: Adjust height to not be covered by bottom sheet when open? 
+            Actually, let it be covered (overlay) but maybe add padding-bottom if needed. 
+            Or use a flex layout where bottom sheet pushes content up?
+            "Bottom sheet" usually overlays. But we want user to see preview while editing.
+            Let's keep it simple: Preview takes full height, Panel overlays at bottom.
+        */}
+        <div className={`w-full h-full transition-all duration-300 ${isPanelOpen ? 'pb-[70vh] md:pb-0' : 'pb-16 md:pb-0'}`}>
+            <GridPreview
+              pieces={pieces}
+              cols={cols}
+              onDownloadSingle={downloadSingle}
+              isLoading={status !== ProcessingStatus.IDLE}
+            />
+        </div>
 
         {/* Error Toast */}
         {errorMessage && (
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg backdrop-blur animate-fade-in-up z-50">
+          <div className="absolute top-6 left-1/2 transform -translate-x-1/2 px-4 py-2 bg-red-500/90 text-white text-sm rounded-lg shadow-lg backdrop-blur animate-fade-in-up z-50 w-[90%] md:w-auto text-center">
             {errorMessage}
             <button
               onClick={() => setErrorMessage(null)}
@@ -295,6 +322,19 @@ const AppContent: React.FC = () => {
           </div>
         )}
       </main>
+
+      {/* Mobile Bottom Sheet (visible on md-) */}
+      <div 
+        className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-gray-800 border-t border-gray-700 shadow-2xl transition-all duration-300 ease-in-out flex flex-col`}
+        style={{ height: isPanelOpen ? '70vh' : '60px' }}
+      >
+        <ControlPanel
+          {...commonControlProps}
+          variant="mobile"
+          isOpen={isPanelOpen}
+          onToggle={() => setIsPanelOpen(!isPanelOpen)}
+        />
+      </div>
     </div>
   );
 };

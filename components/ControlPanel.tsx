@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, Image as ImageIcon, Download, Trash2, Wand2, RefreshCcw, Loader2, ChevronDown, ChevronRight, Languages, X, Menu } from 'lucide-react';
+import { Settings, Image as ImageIcon, Download, Trash2, Wand2, RefreshCcw, Loader2, ChevronDown, ChevronRight, Languages, X, Menu, ChevronUp } from 'lucide-react';
 import { ProcessingStatus } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -27,6 +27,11 @@ interface ControlPanelProps {
   progressText: string;
   onCancel: () => void;
   isCanceling: boolean;
+  
+  // New props for layout control
+  variant?: 'desktop' | 'mobile';
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
 const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -52,72 +57,83 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
   progress,
   progressText,
   onCancel,
-  isCanceling
+  isCanceling,
+  variant = 'desktop',
+  isOpen = true,
+  onToggle
 }) => {
   const { t, language, setLanguage } = useLanguage();
   const isLoading = status !== ProcessingStatus.IDLE;
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const toggleLanguage = () => {
+  const toggleLanguage = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setLanguage(language === 'en' ? 'ja' : 'en');
   };
 
-  return (
-    <>
-      {/* Mobile Header / Toggle */}
-      <div className="md:hidden flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 z-50 relative">
-        <div className="flex items-center gap-2 text-indigo-400">
-           <ImageIcon className="w-6 h-6" />
-           <h1 className="text-xl font-bold tracking-tight text-white">{t('appTitle')}</h1>
-        </div>
-        <button 
-          onClick={() => setIsMobileOpen(!isMobileOpen)}
-          className="p-2 text-gray-300 hover:text-white"
-        >
-          {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+  const isMobile = variant === 'mobile';
+
+  // Mobile Header (Bottom Sheet Handle)
+  const MobileHeader = () => (
+    <div 
+      className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700 cursor-pointer select-none"
+      onClick={onToggle}
+    >
+      <div className="flex items-center gap-2 text-indigo-400">
+         <div className="w-8 h-1 bg-gray-600 rounded-full absolute top-2 left-1/2 transform -translate-x-1/2" />
+         <div className="flex items-center gap-2 mt-2">
+            <ImageIcon className="w-5 h-5" />
+            <h1 className="text-lg font-bold tracking-tight text-white">{t('appTitle')}</h1>
+         </div>
       </div>
+      <div className="flex items-center gap-3 mt-2">
+        <button
+          onClick={toggleLanguage}
+          className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1 text-xs bg-gray-700/50"
+        >
+           <Languages className="w-3 h-3" />
+           <span>{language.toUpperCase()}</span>
+        </button>
+        {isOpen ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
+      </div>
+    </div>
+  );
 
-      {/* Sidebar Container - Hidden on mobile unless toggled, fixed or drawer style? 
-          Let's make it a normal flow on desktop, and an absolute overlay or collapsible block on mobile.
-          Actually, making it collapsible block above preview is easiest for layout.
-      */}
-      <div className={`
-        w-full md:w-80 bg-gray-800 border-r border-gray-700 p-6 flex flex-col md:h-full overflow-y-auto transition-all duration-300
-        ${isMobileOpen ? 'block h-auto max-h-[80vh] border-b shadow-2xl' : 'hidden md:flex h-full'}
-      `}>
-        {/* Desktop Header */}
-        <div className="hidden md:flex items-center justify-between mb-8">
-          <div className="flex items-center gap-2 text-indigo-400">
-            <div className="p-2 bg-indigo-500/10 rounded-lg">
-              <ImageIcon className="w-6 h-6" />
+  return (
+    <div className={`
+      bg-gray-800 flex flex-col transition-all duration-300
+      ${isMobile ? 'w-full h-full' : 'w-full md:w-80 border-r border-gray-700 h-full'}
+    `}>
+      
+      {/* Mobile Header */}
+      {isMobile && <MobileHeader />}
+
+      {/* Desktop Header */}
+      {!isMobile && (
+        <div className="p-6 pb-0">
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center gap-2 text-indigo-400">
+              <div className="p-2 bg-indigo-500/10 rounded-lg">
+                <ImageIcon className="w-6 h-6" />
+              </div>
+              <h1 className="text-xl font-bold tracking-tight text-white">{t('appTitle')}</h1>
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-white">{t('appTitle')}</h1>
+            
+            <button
+              onClick={toggleLanguage}
+              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1 text-xs"
+              title="Switch Language"
+            >
+              <Languages className="w-4 h-4" />
+              <span>{language.toUpperCase()}</span>
+            </button>
           </div>
-          
-          <button
-            onClick={toggleLanguage}
-            className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-1 text-xs"
-            title="Switch Language"
-          >
-            <Languages className="w-4 h-4" />
-            <span>{language.toUpperCase()}</span>
-          </button>
         </div>
+      )}
 
-        {/* Mobile Language Toggle inside menu */}
-        <div className="md:hidden flex justify-end mb-4">
-           <button
-            onClick={toggleLanguage}
-            className="px-3 py-1.5 bg-gray-700 text-gray-300 rounded-lg flex items-center gap-2 text-sm"
-          >
-            <Languages className="w-4 h-4" />
-            <span>{language === 'en' ? 'English' : '日本語'}</span>
-          </button>
-        </div>
-
-        <div className="space-y-8 flex-1">
+      {/* Content Area - Scrollable */}
+      <div className={`flex-1 overflow-y-auto p-6 ${isMobile && !isOpen ? 'hidden' : 'block'}`}>
+        <div className="space-y-8 pb-8">
           {/* Upload Section */}
           <div className="space-y-4">
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">{t('sourceImage')}</h2>
@@ -340,36 +356,36 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
               )}
             </div>
           )}
+
+          {/* Actions Footer */}
+          {hasImage && (
+            <div className="pt-6 border-t border-gray-700 space-y-3">
+              <button
+                onClick={onDownloadZip}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
+              >
+                {status === ProcessingStatus.ZIPPING ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {t('downloadZip')}
+              </button>
+
+              <button
+                onClick={onReset}
+                disabled={isLoading && status !== ProcessingStatus.REMOVING_BACKGROUND} // Allow reset to cancel
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all text-sm"
+              >
+                <Trash2 className="w-4 h-4" />
+                {t('resetAll')}
+              </button>
+            </div>
+          )}
         </div>
-
-        {/* Actions Footer */}
-        {hasImage && (
-          <div className="pt-6 border-t border-gray-700 space-y-3">
-            <button
-              onClick={onDownloadZip}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium"
-            >
-              {status === ProcessingStatus.ZIPPING ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {t('downloadZip')}
-            </button>
-
-            <button
-              onClick={onReset}
-              disabled={isLoading && status !== ProcessingStatus.REMOVING_BACKGROUND} // Allow reset to cancel
-              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all text-sm"
-            >
-              <Trash2 className="w-4 h-4" />
-              {t('resetAll')}
-            </button>
-          </div>
-        )}
       </div>
-    </>
+    </div>
   );
 };
 
