@@ -209,6 +209,9 @@ const AppContent: React.FC = () => {
           await new Promise(resolve => setTimeout(resolve, 50));
         }
 
+        // Add a final small delay to ensure the last piece is rendered before finishing status
+        await new Promise(resolve => setTimeout(resolve, 300));
+
         // Mark as processed so UI updates (buttons disable etc)
         // But we DON'T update previewUrl because that would trigger the useEffect and overwrite our work
         setImageState(prev => ({

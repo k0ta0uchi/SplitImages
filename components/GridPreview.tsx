@@ -86,7 +86,7 @@ const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingl
             >
               {pieces.map((piece) => (
                 <div 
-                  key={piece.id} 
+                  key={`${piece.id}-${piece.url}`} 
                   className="group relative aspect-square bg-gray-900/50 overflow-hidden"
                 >
                   <img 
