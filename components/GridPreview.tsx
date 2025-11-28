@@ -27,18 +27,29 @@ const GridPreview: React.FC<GridPreviewProps> = ({ pieces, cols, onDownloadSingl
   const handleShare = async () => {
     if (!selectedPiece) return;
     try {
-      // Need to convert blob to File object if not already
-      // SplitPiece already has 'blob' which is a File object in our App.tsx logic
-      const file = selectedPiece.blob; 
+      // Ensure we have a valid File object with correct MIME type
+      const blob = selectedPiece.blob;
+      const fileName = selectedPiece.fileName.endsWith('.png') 
+        ? selectedPiece.fileName 
+        : `${selectedPiece.fileName}.png`;
+        
+      const file = new File([blob], fileName, { type: 'image/png' });
+
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: selectedPiece.fileName,
-          text: 'Created with SplitGrid AI'
+          // title: fileName, // Some browsers have issues with title+files
         });
+      } else {
+        throw new Error('Web Share API not supported for files');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sharing:', error);
+      // Ignore user cancellation
+      if (error.name !== 'AbortError') {
+        // Fallback to regular download if share fails
+        handleSaveFile();
+      }
     } finally {
       setSelectedPiece(null);
     }
