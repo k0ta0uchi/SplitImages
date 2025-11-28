@@ -27,57 +27,10 @@ const AppContent: React.FC = () => {
   const [removalMode, setRemovalMode] = useState<'original' | 'split'>('split');
   const [progress, setProgress] = useState<number>(0);
   const [progressText, setProgressText] = useState<string>('');
-  const [logs, setLogs] = useState<string[]>([]);
   
   const abortControllerRef = useRef<AbortController | null>(null);
   const [isCanceling, setIsCanceling] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true); // For mobile bottom sheet
-
-  // Capture console logs for mobile debugging
-  useEffect(() => {
-    const originalLog = console.log;
-    const originalError = console.error;
-    const originalWarn = console.warn;
-
-    const formatArgs = (args: any[]) => args.map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg);
-        } catch {
-          return String(arg);
-        }
-      }
-      return String(arg);
-    }).join(' ');
-
-    const addLog = (type: string, args: any[]) => {
-      setLogs(prev => {
-        const newLogs = [...prev, `[${type}] ${formatArgs(args)}`];
-        return newLogs.slice(-50); // Keep last 50 logs
-      });
-    };
-
-    console.log = (...args) => {
-      originalLog(...args);
-      addLog('LOG', args);
-    };
-
-    console.error = (...args) => {
-      originalError(...args);
-      addLog('ERR', args);
-    };
-
-    console.warn = (...args) => {
-      originalWarn(...args);
-      addLog('WRN', args);
-    };
-
-    return () => {
-      console.log = originalLog;
-      console.error = originalError;
-      console.warn = originalWarn;
-    };
-  }, []);
 
   // Control panel visibility on mobile based on image state
   useEffect(() => {
@@ -444,17 +397,6 @@ const AppContent: React.FC = () => {
           onToggle={() => setIsPanelOpen(!isPanelOpen)}
         />
       </div>
-
-      {/* Debug Log Overlay (Mobile Only, when processing) */}
-      {status === ProcessingStatus.REMOVING_BACKGROUND && (
-        <div className="md:hidden fixed top-0 left-0 right-0 h-1/3 bg-black/80 text-green-400 text-[10px] font-mono p-2 overflow-y-auto z-50 pointer-events-none opacity-90">
-          {logs.map((log, i) => (
-            <div key={i} className="whitespace-pre-wrap border-b border-gray-800/50 pb-0.5 mb-0.5">
-              {log}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 };
