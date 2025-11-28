@@ -6,6 +6,8 @@ import { splitImage, downloadZip, downloadSingle } from './services/imageService
 import { removeBackgroundLocal } from './services/backgroundService';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 
+import { Settings, Loader2, X } from 'lucide-react'; // Import Settings and Loader2
+
 const AppContent: React.FC = () => {
   const { t } = useLanguage();
   const [imageState, setImageState] = useState<ImageState>({
@@ -34,9 +36,8 @@ const AppContent: React.FC = () => {
   useEffect(() => {
      if (!imageState.previewUrl) {
        setIsPanelOpen(true);
-     } else {
-       setIsPanelOpen(false); // Collapse when image loaded to show preview
      }
+     // Removed "else { setIsPanelOpen(false) }" to keep panel open after upload
   }, [imageState.previewUrl]);
 
   // Debounce the split operation to avoid freezing on slider drag
@@ -102,6 +103,9 @@ const AppContent: React.FC = () => {
 
   const handleRemoveBackground = async () => {
     if (!imageState.original) return;
+
+    // Mobile: Close panel to show preview
+    setIsPanelOpen(false);
 
     setStatus(ProcessingStatus.REMOVING_BACKGROUND);
     setErrorMessage(null);
@@ -222,6 +226,8 @@ const AppContent: React.FC = () => {
       setProgressText('');
       setIsCanceling(false);
       abortControllerRef.current = null;
+      // Re-open panel when done
+      setIsPanelOpen(true);
     }
   };
 
@@ -308,6 +314,37 @@ const AppContent: React.FC = () => {
               isLoading={status !== ProcessingStatus.IDLE}
             />
         </div>
+
+        {/* Mobile Progress Overlay - Compact Capsule */}
+        {status === ProcessingStatus.REMOVING_BACKGROUND && (
+          <div className="absolute bottom-20 left-4 right-4 z-30 flex items-center justify-center md:hidden animate-fade-in-up">
+            <div className="bg-gray-800/95 backdrop-blur-md border border-gray-700 rounded-full shadow-2xl p-3 flex items-center gap-3 w-full max-w-sm">
+              <Loader2 className="w-5 h-5 text-indigo-400 animate-spin flex-shrink-0" />
+              
+              <div className="flex-1 min-w-0 flex flex-col justify-center">
+                <div className="flex justify-between items-center mb-1">
+                   <span className="text-xs font-medium text-white truncate mr-2">{progressText || t('processing')}</span>
+                   <span className="text-xs font-mono text-indigo-300">{Math.round(progress)}%</span>
+                </div>
+                <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                   <div 
+                     className="h-full bg-indigo-500 transition-all duration-300 ease-out"
+                     style={{ width: `${progress}%` }}
+                   />
+                </div>
+              </div>
+
+              <button
+                 onClick={handleCancel}
+                 disabled={isCanceling}
+                 className="p-2 text-gray-400 hover:text-white hover:bg-red-500/20 rounded-full transition-colors flex-shrink-0"
+                 title={t('cancel')}
+               >
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+          </div>
+        )}
 
         {/* Error Toast */}
         {errorMessage && (

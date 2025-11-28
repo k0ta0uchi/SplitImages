@@ -310,7 +310,7 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                 )}
               </div>
 
-              {status === ProcessingStatus.REMOVING_BACKGROUND ? (
+              {status === ProcessingStatus.REMOVING_BACKGROUND && !isMobile ? (
                  <div className="space-y-2">
                    <div className="w-full h-10 bg-gray-700 rounded-lg relative overflow-hidden flex items-center justify-center">
                      <div 
@@ -343,12 +343,18 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
                   disabled:opacity-50 disabled:cursor-not-allowed
                 `}
               >
-                {isProcessed ? (
+                {status === ProcessingStatus.REMOVING_BACKGROUND ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : isProcessed ? (
                   <Wand2 className="w-4 h-4" />
                 ) : (
                   <Wand2 className="w-4 h-4" />
                 )}
-                {isProcessed ? t('backgroundRemoved') : t('removeBackground')}
+                {status === ProcessingStatus.REMOVING_BACKGROUND 
+                  ? t('processing') 
+                  : isProcessed 
+                    ? t('backgroundRemoved') 
+                    : t('removeBackground')}
               </button>
               )}
               {isProcessed && (

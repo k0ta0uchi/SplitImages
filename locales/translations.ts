@@ -41,6 +41,9 @@ export const translations = {
     errorBackground: 'Background removal failed. Please check console for details.',
     errorZip: 'Failed to generate ZIP.',
     downloadPiece: 'Download this piece',
+    downloadOptions: 'Download Options',
+    saveToFile: 'Save to Files',
+    shareImage: 'Share / Save to Photos',
   },
   ja: {
     appTitle: 'SplitGrid AI',
@@ -82,5 +85,8 @@ export const translations = {
     errorBackground: '背景削除に失敗しました。コンソールを確認してください。',
     errorZip: 'ZIPの作成に失敗しました。',
     downloadPiece: 'このピースをダウンロード',
+    downloadOptions: '保存オプション',
+    saveToFile: 'ファイルに保存',
+    shareImage: '共有 / 写真に保存',
   }
 };
