@@ -162,6 +162,9 @@ const AppContent: React.FC = () => {
           if (abortControllerRef.current?.signal.aborted) {
              throw new Error('Aborted');
           }
+          
+          // Yield to main thread to allow UI rendering
+          await new Promise(resolve => setTimeout(resolve, 50));
 
           const piece = currentPieces[i];
           const file = dataURLtoFile(piece.dataUrl, `piece_${i}.png`);
@@ -201,6 +204,9 @@ const AppContent: React.FC = () => {
             next[i] = newPiece;
             return next;
           });
+          
+          // Yield again to ensure render happens after state update
+          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         // Mark as processed so UI updates (buttons disable etc)
