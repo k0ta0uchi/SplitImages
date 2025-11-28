@@ -159,54 +159,64 @@ const AppContent: React.FC = () => {
 
         // Process each piece sequentially
         for (let i = 0; i < totalPieces; i++) {
-          if (abortControllerRef.current?.signal.aborted) {
-             throw new Error('Aborted');
+          try {
+            if (abortControllerRef.current?.signal.aborted) {
+               throw new Error('Aborted');
+            }
+            
+            // Yield to main thread to allow UI rendering
+            await new Promise(resolve => setTimeout(resolve, 50));
+  
+            const piece = currentPieces[i];
+            const file = dataURLtoFile(piece.dataUrl, `piece_${i}.png`);
+  
+            // Process piece
+            const processedDataUrl = await removeBackgroundLocal(file, {
+              threshold,
+              opacityBoost,
+              expand
+            }, (msg, percent) => {
+               if (abortControllerRef.current?.signal.aborted) return;
+               // Calculate global progress
+               // Global = (Completed Pieces * 100 + Current Piece Percent) / Total Pieces
+               const globalPercent = ((i * 100) + percent) / totalPieces;
+               setProgress(globalPercent);
+               setProgressText(`${t('piece')} ${i + 1}/${totalPieces}: ${msg}`);
+            });
+  
+            if (abortControllerRef.current?.signal.aborted) {
+               throw new Error('Aborted');
+            }
+  
+            // Create new Blob/File and URL for the processed piece
+            const processedFile = dataURLtoFile(processedDataUrl, piece.fileName);
+            const processedUrl = URL.createObjectURL(processedFile);
+  
+            const newPiece: SplitPiece = {
+              ...piece,
+              blob: processedFile,
+              url: processedUrl,
+              dataUrl: processedDataUrl
+            };
+  
+            // Update pieces state incrementally to show progress
+            setPieces(prev => {
+              const next = [...prev];
+              next[i] = newPiece;
+              return next;
+            });
+            
+            // Yield again to ensure render happens after state update
+            await new Promise(resolve => setTimeout(resolve, 50));
+            
+          } catch (pieceError: any) {
+            if (pieceError.message === 'Aborted') throw pieceError;
+            console.error(`Error processing piece ${i}:`, pieceError);
+            // Continue to next piece without updating state (keep original)
+            // Update progress text to show error briefly?
+            setProgressText(`${t('piece')} ${i + 1}/${totalPieces}: Error (Skipping)`);
+            await new Promise(resolve => setTimeout(resolve, 500)); // Show error briefly
           }
-          
-          // Yield to main thread to allow UI rendering
-          await new Promise(resolve => setTimeout(resolve, 50));
-
-          const piece = currentPieces[i];
-          const file = dataURLtoFile(piece.dataUrl, `piece_${i}.png`);
-
-          // Process piece
-          const processedDataUrl = await removeBackgroundLocal(file, {
-            threshold,
-            opacityBoost,
-            expand
-          }, (msg, percent) => {
-             if (abortControllerRef.current?.signal.aborted) return;
-             // Calculate global progress
-             // Global = (Completed Pieces * 100 + Current Piece Percent) / Total Pieces
-             const globalPercent = ((i * 100) + percent) / totalPieces;
-             setProgress(globalPercent);
-             setProgressText(`${t('piece')} ${i + 1}/${totalPieces}: ${msg}`);
-          });
-
-          if (abortControllerRef.current?.signal.aborted) {
-             throw new Error('Aborted');
-          }
-
-          // Create new Blob/File and URL for the processed piece
-          const processedFile = dataURLtoFile(processedDataUrl, piece.fileName);
-          const processedUrl = URL.createObjectURL(processedFile);
-
-          const newPiece: SplitPiece = {
-            ...piece,
-            blob: processedFile,
-            url: processedUrl,
-            dataUrl: processedDataUrl
-          };
-
-          // Update pieces state incrementally to show progress
-          setPieces(prev => {
-            const next = [...prev];
-            next[i] = newPiece;
-            return next;
-          });
-          
-          // Yield again to ensure render happens after state update
-          await new Promise(resolve => setTimeout(resolve, 50));
         }
 
         // Add a final small delay to ensure the last piece is rendered before finishing status
