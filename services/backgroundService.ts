@@ -12,6 +12,13 @@ let depthSession: ort.InferenceSession | null = null;
 let mattingSession: ort.InferenceSession | null = null;
 let refinerSession: ort.InferenceSession | null = null;
 
+export const releaseSessions = () => {
+  depthSession = null;
+  mattingSession = null;
+  refinerSession = null;
+  console.log('Sessions released');
+};
+
 async function initDepthSession(): Promise<ort.InferenceSession> {
   if (depthSession) return depthSession;
   console.log('Loading depth model...');

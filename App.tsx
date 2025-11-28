@@ -3,7 +3,7 @@ import ControlPanel from './components/ControlPanel';
 import GridPreview from './components/GridPreview';
 import { ImageState, ProcessingStatus, SplitPiece } from './types';
 import { splitImage, downloadZip, downloadSingle } from './services/imageService';
-import { removeBackgroundLocal } from './services/backgroundService';
+import { removeBackgroundLocal, releaseSessions } from './services/backgroundService';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 
 import { Settings, Loader2, X } from 'lucide-react'; // Import Settings and Loader2
@@ -212,6 +212,10 @@ const AppContent: React.FC = () => {
           } catch (pieceError: any) {
             if (pieceError.message === 'Aborted') throw pieceError;
             console.error(`Error processing piece ${i}:`, pieceError);
+            
+            // Release sessions to free memory/context in case of error
+            releaseSessions();
+
             // Continue to next piece without updating state (keep original)
             // Update progress text to show error briefly?
             setProgressText(`${t('piece')} ${i + 1}/${totalPieces}: Error (Skipping)`);
@@ -245,6 +249,8 @@ const AppContent: React.FC = () => {
       setProgressText('');
       setIsCanceling(false);
       abortControllerRef.current = null;
+      // Release sessions after batch completion to free memory
+      releaseSessions();
       // Re-open panel when done
       setIsPanelOpen(true);
     }
